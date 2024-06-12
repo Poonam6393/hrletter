@@ -1,0 +1,47 @@
+
+HOW TO KILL THE PROCESS -
+
+1) netstat -ao | find "8080"
+2) Taskkill /PID  20712 /F
+
+DELETE THE BRANCH -
+
+$ git branch -D feature/STOX/OrderOverview/LOGBUS-28574
+
+
+push latest code -
+	git status
+	git add .
+	git commit -m 'added files'
+	git push origin bugfix/STOX/Settings/LOGBUS-29372
+	git checkout develop
+	git pull
+	git checkout bugfix/STOX/Settings/LOGBUS-29372
+	git rebase develop
+	git push origin bugfix/STOX/Settings/LOGBUS-29372 --force-with-lease
+	
+	
+
+Squash the commits -
+		1) git rebase -i HEAD~<no of commits>
+		2) another window will open with all commit deatails (eg, pick, squash, delete etc), so we can do according to our requirement 
+		3) e.g. here we need to combine 5 commits in a single one 
+		4) latest one will be pick and other 4 will be squash or s
+		5)  esc -> :wq -> enter
+		6) another window will open to edit the our committed message (to delete single line go to that line and press only 0'dd'
+                                                                            to delete multiple line press number of lines'dd')
+																			
+		7) you will get into our parent git bash window with message (sucess or failed etc).
+		8) git push origin bugfix/STOX/DealerMaster/LOGBUS-28663 --force-with-lease
+		
+		
+		
+
+
+																
+																			
+		
+	
+
+
+
