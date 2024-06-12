@@ -1,0 +1,105 @@
+
+DTO:
+{
+"dealerNumber" : 200023300,
+"partnerNumber" : null,
+"orderHint" : null,
+"partNumber" : null,
+"orderIdFrom" : null,
+"orderIdTo" : null
+}
+
+Response :
+{
+    "boughtOrders": [],
+    "soldOrders": [
+        {
+            "supplierName": null,
+            "supZipcode": null,
+            "supCity": null,
+            "posTotal": 1,
+            "posDeleted": 0,
+            "posChanged": 0,
+            "orderInfo": null,
+            "vOROrderInitiated": false,
+            "searchedPartNumber": "A90509000  41",
+            "orderedPartNumber": null,
+            "vrand": 0,
+            "orderInfoFontFlag": false,
+            "customerNumber": null,
+            "quantityOrdered": null,
+            "orderIsn": 51000000410731,
+            "d2DRequestIsn": 51000004690715,
+            "orderValue": 79.36,
+            "orderStatus": 3,
+            "processingDate": "2023-03-15T11:11:12.000+00:00",
+            "shippingDate": "2023-03-15T11:15:14.000+00:00",
+            "finishedDate": null,
+            "shippingInitiated": false,
+            "supplier": 200023300,
+            "orderType": "V",
+            "orderDate": "2023-03-15T10:33:37.000+00:00",
+            "orderNumber": 6107,
+            "currencySymbol": "€",
+            "orderHintCommon": "Lieferung bitte per UPS Standard. Unsere UPS-Kd.Nr.  2AV715\nUm Ihre Rechnungen fristgerecht und vollständig bearbeiten zu können, benötigen wir folgende\nPflichtangaben auf der Rechnung:\nIhre Lieferantennummer: xxxxxxxx\nUnsere Bestellnummer: 3xxxxxxxxxx\nIhre Lieferscheinnummer: xxxxxxxx\n",
+            "orderHintSpecific": "23055;P0049815BARV",
+            "orderHintParticular": "NDL Hannover\n22006\nbitte liefern!\nDanke! Kretschmer",
+            "changedBy": "mheyeng",
+            "customer": 200022006,
+            "process": "D2D",
+            "relation": "RELATION_DEFAULT",
+            "vororderInitiated": false
+        },
+        {
+            "supplierName": null,
+            "supZipcode": null,
+            "supCity": null,
+            "posTotal": 1,
+            "posDeleted": 0,
+            "posChanged": 0,
+            "orderInfo": null,
+            "vOROrderInitiated": false,
+            "searchedPartNumber": "A98674000  92",
+            "orderedPartNumber": null,
+            "vrand": 0,
+            "orderInfoFontFlag": false,
+            "customerNumber": null,
+            "quantityOrdered": null,
+            "orderIsn": 51000000408837,
+            "d2DRequestIsn": 51000004671745,
+            "orderValue": 6.7299999999999995,
+            "orderStatus": 4,
+            "processingDate": "2023-03-13T05:02:07.000+00:00",
+            "shippingDate": "2023-03-13T05:05:00.000+00:00",
+            "finishedDate": "2023-03-15T07:18:20.000+00:00",
+            "shippingInitiated": false,
+            "supplier": 200023300,
+            "orderType": "V",
+            "orderDate": "2023-03-13T04:53:22.000+00:00",
+            "orderNumber": 6106,
+            "currencySymbol": "€",
+            "orderHintCommon": "Lieferung bitte per UPS Standard. Unsere UPS-Kd.Nr.  2AV715\nUm Ihre Rechnungen fristgerecht und vollständig bearbeiten zu können, benötigen wir folgende\nPflichtangaben auf der Rechnung:\nIhre Lieferantennummer: xxxxxxxx\nUnsere Bestellnummer: 3xxxxxxxxxx\nIhre Lieferscheinnummer: xxxxxxxx\n",
+            "orderHintSpecific": null,
+            "orderHintParticular": "NDL Hannover\n22006\nbitte liefern!\nDanke! Kretschmer",
+            "changedBy": "mheyeng",
+            "customer": 200022006,
+            "process": "D2D",
+            "relation": "RELATION_DEFAULT",
+            "vororderInitiated": false
+        }
+    ]
+	
+	feature/STOX/OrderOverview/LOGBUS-28573
+	
+	 process 
+        const status =  this.createTextColumn('Status',"Status", '', true);
+        const userId = this. createTextColumn('userId', "User- ID", '', true);
+        const buyer = this.createTextColumn('buyer',"Buyer", '', true);
+        const countryCode = this.createTextColumn('countryName', this.tx.sellGridData.country, '', true);
+        const orderNo = this.createTextColumn('orderNo',  "Order No", '',true);
+        const numberOfLines =this.createTextColumn('numberOfLines',  "Number of Lines", '',true);
+        const linesDeleted = this.createTextColumn('linesDeleted',  "Lines deleted", '',true); 
+        const linesEdited = this.createTextColumn('linesEdited',  "Lines edited", '',true); 
+        const orderValue = this.createTextColumn('orderValue',  "Order Value", '',true); 
+        const orderEntry = this.createDateColumn('orderEntry',"Order entry", '',true);
+        const inProgress = this.createDateColumn('inProgress',  "In Progress", '',true);

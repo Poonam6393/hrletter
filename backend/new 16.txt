@@ -1,0 +1,820 @@
+package com.logfit.stox.services;
+
+import com.logfit.stox.entities.dims.AppPropertiesUser;
+import com.logfit.stox.entities.dims.DealerMaster;
+import com.logfit.stox.entities.dims.*;
+import com.logfit.stox.models.*;
+import com.logfit.stox.repositories.dims.*;
+import com.logfit.stox.resources.SimpleConverter;
+import com.logfit.stox.util.Constants;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.sql.Date;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class DealerMasterService {
+
+    @Autowired
+    private DealerMasterRepository dealerMasterRepository;
+
+    @Autowired
+    private GssnPoolRepository gssnPoolRepository;
+
+    @Autowired
+    private KalenderdetailsRepository kalenderdetailsRepository;
+
+    @Autowired
+    private KonzernLieferantenParameterRepository konzernLieferantenParameterRepository;
+
+    @Autowired
+    private ParameterHeaderRepository parameterHeaderRepository;
+
+    @Autowired
+    private ParameterDealerAssignmentRepository parameterDealerAssignmentRepository;
+
+    @Autowired
+    private GlobaleOrteRepository globaleOrteRepository;
+
+    @Autowired
+    private AppPropertiesUserService appPropertiesUserService;
+
+    @Autowired
+    private kundenNummernRepository kundenNummernRepository;
+
+    @Autowired
+    private AppPropertiesUserRepository appPropertiesUserRepository;
+
+    @Transactional("dimsTransactionManger")
+    public List<Long> getConnectedDealerData(final Long dealerID) {
+        try {
+            LOGGER.info("method 'getConnectedDealerData' is started");
+            List<Long> connectedDealerIdResultList = new ArrayList<>();
+            //Get Main Dealer ID
+            Optional<Long> mainDealerId = dealerMasterRepository.getMainDealerId(dealerID);
+            if (mainDealerId.isPresent()) {
+                Optional<List<Long>> connectedDealerIDList = dealerMasterRepository.getConnectedDealerData(mainDealerId.get());
+                Optional<List<Long>> connectedDealerIDListGSSN = gssnPoolRepository.getConnectedDealerDataFromGSSNPool(mainDealerId.get());
+                mapConnectedDealerIdList(connectedDealerIDList, connectedDealerIDListGSSN, connectedDealerIdResultList);
+                connectedDealerIdResultList.remove(dealerID);
+                connectedDealerIdResultList.add(mainDealerId.get());
+            } else {
+                Optional<List<Long>> connectedDealerIDList = dealerMasterRepository.getConnectedDealerData(dealerID);
+                Optional<List<Long>> connectedDealerIDListGSSN = gssnPoolRepository.getConnectedDealerDataFromGSSNPool(dealerID);
+                mapConnectedDealerIdList(connectedDealerIDList, connectedDealerIDListGSSN, connectedDealerIdResultList);
+            }
+            return connectedDealerIdResultList;
+        } catch (Exception e) {
+            LOGGER.error("method 'getConnectedDealerData' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    public void mapConnectedDealerIdList(Optional<List<Long>> connectedDealerIDList, Optional<List<Long>> connectedDealerIDListGSSN, List<Long> connectedDealerIdResultList) {
+        if (connectedDealerIDList.isPresent()) {
+            LOGGER.info("method 'getConnectedDealerData' is finished successfully, elapsed time:{}ms");
+            connectedDealerIdResultList.addAll(connectedDealerIDList.get());
+        }
+        if (connectedDealerIDListGSSN.isPresent()) {
+            LOGGER.info("method 'getConnectedDealerData' is finished successfully, elapsed time:{}ms");
+            connectedDealerIdResultList.addAll(connectedDealerIDListGSSN.get());
+        }
+    }
+
+    @Transactional("dimsTransactionManger")
+    public DealerAddress getAddressOfConnectedDealer(final Long connectedDealerID) {
+        try {
+            LOGGER.info("method 'getAddressOfConnectedDealer' is started");
+            Optional<DealerMaster> connectedDealerAddress = dealerMasterRepository.findById(connectedDealerID);
+            if (connectedDealerAddress.isPresent()) {
+                DealerAddress dealerAddress = new DealerAddress();
+                mapDealerAddress(connectedDealerAddress.get(), dealerAddress);
+                return dealerAddress;
+            } else {
+                Optional<GSSNPool> connectedDealerGSSNAddress = gssnPoolRepository.findById(connectedDealerID);
+                if (connectedDealerGSSNAddress.isPresent()) {
+                    DealerAddress dealerAddress = new DealerAddress();
+                    mapGSSNDealerAddress(connectedDealerGSSNAddress.get(), dealerAddress);
+                    return dealerAddress;
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            LOGGER.error("method 'getAddressOfConnectedDealer' is failed, message:{}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    public void mapDealerAddress(DealerMaster dealerMaster, DealerAddress dealerAddress) {
+        dealerAddress.setGort(dealerMaster.getGort());
+        dealerAddress.setHbNR(dealerMaster.getHbNR());
+        dealerAddress.setName(dealerMaster.getName());
+        dealerAddress.setStrasse(dealerMaster.getStrasse());
+        dealerAddress.setHausnumber(dealerMaster.getHausnumber());
+        dealerAddress.setPlz(dealerMaster.getPlz());
+        dealerAddress.setStadt(dealerMaster.getStadt());
+    }
+
+    public void mapGSSNDealerAddress(GSSNPool gssnPool, DealerAddress dealerAddress) {
+        dealerAddress.setGort(gssnPool.getGort());
+        dealerAddress.setHbNR(gssnPool.getHbNR());
+        dealerAddress.setName(gssnPool.getName());
+        dealerAddress.setStrasse(gssnPool.getStrasse());
+        dealerAddress.setHausnumber(gssnPool.getHausnumber());
+        dealerAddress.setPlz(gssnPool.getPlz());
+        dealerAddress.setStadt(gssnPool.getStadt());
+    }
+
+    /**
+     * Check if dealer is active or not
+     * DIMS_STATUS = JJ(Dead stock, D2D), JN is active dealer
+     * DIMS_STATUS = NN is inactive dealer
+     *
+     * @param gort of type Long
+     * @return boolean result
+     */
+    @Transactional("dimsTransactionManger")
+    public boolean getActiveDealer(final Long gort) {
+        boolean isActive = false;
+        Optional<DealerMaster> dealerMaster = dealerMasterRepository.findById(gort);
+        if (dealerMaster.isPresent()) {
+            if (null != dealerMaster.get().getStoxAktiv()) {
+                isActive = (dealerMaster.get().getStoxAktiv().equalsIgnoreCase("NN")) ? false : true;
+            }
+        }
+        return isActive;
+    }
+
+    @Transactional("dimsTransactionManger")
+    public boolean getDealerPresent(final Long gort) {
+        Optional<DealerMaster> dealerMaster = dealerMasterRepository.findById(gort);
+        if (dealerMaster.isPresent()) {
+            return true;
+        }
+        return false;
+    }
+
+    @Transactional("dimsTransactionManger")
+    public DealerMaster getDealerDetails(final Long activeDealerId) {
+        try {
+            LOGGER.info("method 'getActiveDealerName' is started");
+            Optional<DealerMaster> dealerMaster = dealerMasterRepository.getDealerDetails(activeDealerId);
+            if (dealerMaster.isPresent()) {
+                LOGGER.info("method 'getActiveDealerName' is finished successfully, elapsed time:{}ms");
+                return dealerMaster.get();
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            LOGGER.error("method 'getActiveDealerName' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    @Transactional("dimsTransactionManger")
+    public String getDealerName(final Long dealerId) {
+        try {
+            LOGGER.info("method 'getDealerName' is started");
+            Optional<String> dealerName = dealerMasterRepository.getDealerName(dealerId);
+            if (dealerName.isPresent()) {
+                LOGGER.info("method 'getDealerName' is finished successfully, elapsed time:{}ms");
+                return dealerName.get();
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            LOGGER.error("method 'getDealerName' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    public StoxLocalSettings mapDealerMasterData(DealerMaster dealerMaster, StoxLocalSettings stoxLocalSettingsResult) {
+        stoxLocalSettingsResult.setName(dealerMaster.getName());
+        stoxLocalSettingsResult.setStrasse(dealerMaster.getStrasse());
+        stoxLocalSettingsResult.setHausnumber(dealerMaster.getHausnumber());
+        stoxLocalSettingsResult.setPlz(dealerMaster.getPlz());
+        stoxLocalSettingsResult.setStadt(dealerMaster.getStadt());
+        return stoxLocalSettingsResult;
+    }
+
+    @Transactional("dimsTransactionManger")
+    public Optional<List<DealerMaster>> getELCRegion() {
+        try {
+            LOGGER.info("method 'getELCRegion' is started");
+            Optional<List<DealerMaster>> dealerMaster = dealerMasterRepository.getELCRegion(Constants.WHS_TYPE, Constants.WHSN_TYPE);
+            return dealerMaster;
+        } catch (Exception e) {
+            LOGGER.error("method 'getELCRegion' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    @Transactional("dimsTransactionManger")
+    public DealerMaster searchBusinessPartners(BusinessPartners businessPartnersDTO) {
+        try {
+            LOGGER.info("method 'searchBusinessPartners' is started");
+            Long dealer = businessPartnersDTO.getDealer();
+            String name = businessPartnersDTO.getName();
+            String city = businessPartnersDTO.getCity();
+            String postalCode = businessPartnersDTO.getPostalCode();
+            String telephone = businessPartnersDTO.getTelephone();
+            String elcRegion = businessPartnersDTO.getElcRegion();
+
+            //DealerMaster businessPartnerData = dealerMasterRepository.getBusinessPartnerData(dealer, name, city, postalCode, telephone);
+            return null;
+        } catch (Exception e) {
+            LOGGER.error("method 'searchBusinessPartners' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+
+    }
+
+    @Transactional("dimsTransactionManger")
+    public DealerMasterDataDetail getDealerMasterDataDetail(Long gloc) {
+        try {
+            DealerMasterDataDetail dealerMasterDataDetail = new DealerMasterDataDetail();
+            appPropertiesUserService.updateActiveDealerDataAndUserSettingsForDealerMaster(gloc.toString().substring(0, 3), gloc.toString().substring(3));
+            Optional<DealerMaster> dealerMaster = dealerMasterRepository.getDealerDetails(gloc);
+            if (dealerMaster.isPresent()) {
+
+                DealerMasterData dealerMasterData = (DealerMasterData) SimpleConverter.convertEntityToModel(dealerMaster.get(), Map.of(DealerMaster.class, DealerMasterData.class),
+                        false);
+                if (null != dealerMaster.get().getHbNR()) {
+
+                    List<ConnectedDealerMasterData> connectedDealerMasterDataList = getConnectedDealerDataOfDealer(dealerMaster.get().getHbNR());
+
+                    Optional<DealerMaster> mainDealerData = dealerMasterRepository.getDealerDetails(dealerMaster.get().getHbNR());
+                    ConnectedDealerMasterData mainDealerMasterData = (ConnectedDealerMasterData) SimpleConverter.convertEntityToModel(mainDealerData.get(), Map.of(DealerMaster.class, ConnectedDealerMasterData.class),
+                            false);
+                    ConnectedDealerMasterData connectedDealerMasterData = new ConnectedDealerMasterData();
+                    connectedDealerMasterData.setGort(dealerMasterData.getGort());
+                    connectedDealerMasterData.setName(dealerMasterData.getName());
+                    connectedDealerMasterData.setStadt(dealerMasterData.getStadt());
+                    connectedDealerMasterData.setHbNR(dealerMasterData.getHbNR());
+                    connectedDealerMasterData.setDms(dealerMasterData.getDms());
+                    connectedDealerMasterData.setDmsVersion(dealerMasterData.getDmsVersion());
+                    connectedDealerMasterDataList.remove(connectedDealerMasterData);
+                    connectedDealerMasterDataList.add(mainDealerMasterData);
+                    dealerMasterDataDetail.setConnectedDealerMasterDataList(connectedDealerMasterDataList);
+                } else {
+                    List<ConnectedDealerMasterData> connectedDealerMasterDataList = getConnectedDealerDataOfDealer(gloc);
+                    dealerMasterDataDetail.setConnectedDealerMasterDataList(connectedDealerMasterDataList);
+                }
+                dealerMasterDataDetail.setExistInDealer(true);
+                dealerMasterDataDetail.setDealerMasterData(dealerMasterData);
+            } else {
+                Optional<GSSNPool> gssnPoolDealerData = gssnPoolRepository.getDealerDataFromGSSNPool(gloc);
+                if (gssnPoolDealerData.isPresent()) {
+                    DealerMasterData dealerMasterData = (DealerMasterData) SimpleConverter.convertEntityToModel(gssnPoolDealerData.get(), Map.of(GSSNPool.class, DealerMasterData.class),
+                            false);
+                    if (null != gssnPoolDealerData.get().getHbNR()) {
+                        List<ConnectedDealerMasterData> connectedDealerMasterDataList = getConnectedDealerDataOfDealer(gssnPoolDealerData.get().getHbNR());
+                        Optional<DealerMaster> mainDealerData = dealerMasterRepository.getDealerDetails(gssnPoolDealerData.get().getHbNR());
+                        ConnectedDealerMasterData mainDealerMasterData = (ConnectedDealerMasterData) SimpleConverter.convertEntityToModel(mainDealerData.get(), Map.of(DealerMaster.class, ConnectedDealerMasterData.class),
+                                false);
+                        ConnectedDealerMasterData connectedDealerMasterData = new ConnectedDealerMasterData();
+                        connectedDealerMasterData.setGort(dealerMasterData.getGort());
+                        connectedDealerMasterData.setName(dealerMasterData.getName());
+                        connectedDealerMasterData.setStadt(dealerMasterData.getStadt());
+                        connectedDealerMasterData.setHbNR(dealerMasterData.getHbNR());
+                        connectedDealerMasterData.setDms(dealerMasterData.getDms());
+                        connectedDealerMasterData.setDmsVersion(dealerMasterData.getDmsVersion());
+                        connectedDealerMasterDataList.remove(connectedDealerMasterData);
+                        connectedDealerMasterDataList.add(mainDealerMasterData);
+                        dealerMasterDataDetail.setConnectedDealerMasterDataList(connectedDealerMasterDataList);
+                    } else {
+                        List<ConnectedDealerMasterData> connectedDealerMasterDataList = getConnectedDealerDataOfDealer(gloc);
+                        dealerMasterDataDetail.setConnectedDealerMasterDataList(connectedDealerMasterDataList);
+                    }
+                    dealerMasterDataDetail.setExistInGssn(true);
+                    dealerMasterDataDetail.setDealerMasterData(dealerMasterData);
+                }
+            }
+            if (null != dealerMasterDataDetail.getConnectedDealerMasterDataList() && !dealerMasterDataDetail.getConnectedDealerMasterDataList().isEmpty()) {
+                List<ConnectedDealerMasterData> sortedList = dealerMasterDataDetail.getConnectedDealerMasterDataList().stream().sorted(Comparator.comparingLong(ConnectedDealerMasterData::getGort)).collect(Collectors.toList());
+                dealerMasterDataDetail.setConnectedDealerMasterDataList(sortedList);
+            }
+            return dealerMasterDataDetail;
+        } catch (Exception e) {
+            LOGGER.error("method 'getDealerMasterDataDetail' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    private List<ConnectedDealerMasterData> getConnectedDealerDataOfDealer(Long gloc) {
+        try {
+            List<ConnectedDealerMasterData> connectedDealerMasterDataList = new ArrayList<>();
+            Optional<List<DealerMaster>> dealerMasterList = dealerMasterRepository.getConnectedDealerDataDetail(gloc);
+            Optional<List<GSSNPool>> gssnPoolList = gssnPoolRepository.getConnectedDealerDataDetailFromGSSNPool(gloc);
+
+            if (dealerMasterList.isPresent()) {
+                List<DealerMaster> dealerMasters = dealerMasterList.get();
+                dealerMasters.forEach(dmaster -> {
+                    ConnectedDealerMasterData connectedDealer = (ConnectedDealerMasterData) SimpleConverter.convertEntityToModel(dmaster, Map.of(DealerMaster.class, ConnectedDealerMasterData.class),
+                            false);
+                    connectedDealerMasterDataList.add(connectedDealer);
+                });
+            }
+
+            if (gssnPoolList.isPresent()) {
+                List<GSSNPool> gssnPools = gssnPoolList.get();
+                gssnPools.forEach(gpool -> {
+                    ConnectedDealerMasterData connectedDealer = (ConnectedDealerMasterData) SimpleConverter.convertEntityToModel(gpool, Map.of(GSSNPool.class, ConnectedDealerMasterData.class),
+                            false);
+                    connectedDealerMasterDataList.add(connectedDealer);
+                });
+            }
+            return connectedDealerMasterDataList;
+        } catch (Exception e) {
+            LOGGER.error("method 'getConnectedDealerData' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    public CreateDealerMasterData getCreateDealerMasterData(Long lkz, Long kalender_typ) {
+        try {
+            CreateDealerMasterData createDealerMasterData = new CreateDealerMasterData();
+            createDealerMasterData.setDealerCalenderNoList(getCalenderDetails(lkz, kalender_typ));
+            createDealerMasterData.setSupplierParameterList(getSupplierParameter(lkz));
+            createDealerMasterData.setDealerTypeList(getDealerType(lkz));
+            return createDealerMasterData;
+        } catch (Exception e) {
+            LOGGER.error("method 'getCreateDealerMasterData' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    /**
+     * Service to get calender details
+     *
+     * @param lkz
+     * @param kalender_typ
+     * @return
+     */
+    @Transactional("dimsTransactionManger")
+    public List<KalenderdetailsDTO> getCalenderDetails(Long lkz, Long kalender_typ) {
+        try {
+            List<KalenderdetailsDTO> kalenderdetailsDTOList = new ArrayList<>();
+            Optional<List<Kalenderdetails>> kalenderdetailsList = kalenderdetailsRepository.getCalenderDetails(lkz, kalender_typ);
+            if (kalenderdetailsList.isPresent()) {
+                kalenderdetailsList.get().forEach(kalenderdetails -> {
+                    KalenderdetailsDTO kalenderdetailsDTO = (KalenderdetailsDTO) SimpleConverter.convertEntityToModel(kalenderdetails, Map.of(Kalenderdetails.class, KalenderdetailsDTO.class), false);
+                    kalenderdetailsDTOList.add(kalenderdetailsDTO);
+                });
+            }
+            return kalenderdetailsDTOList;
+        } catch (Exception e) {
+            LOGGER.error("method 'getCalenderDetails' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    /**
+     * Service to get supplier to create master data
+     *
+     * @param lkz
+     * @return
+     */
+    @Transactional("dimsTransactionManger")
+    public List<KonzernLieferantenParameterDTO> getSupplierParameter(Long lkz) {
+        try {
+            List<KonzernLieferantenParameterDTO> konzernLieferantenParameterDTOList = new ArrayList<>();
+            List<KonzernLieferantenParameterDTO> sortedSupplierParameterList = new ArrayList<>();
+            Optional<List<KonzernlLieferantenParameter>> konzern_lieferanten_parameterList = konzernLieferantenParameterRepository.getSupplierParameter(lkz);
+            if (konzern_lieferanten_parameterList.isPresent()) {
+                konzern_lieferanten_parameterList.get().forEach(konzernLieferantenParameter -> {
+                    KonzernLieferantenParameterDTO konzernLieferantenParameterDTO = (KonzernLieferantenParameterDTO) SimpleConverter.convertEntityToModel(konzernLieferantenParameter, Map.of(KonzernlLieferantenParameter.class, KonzernLieferantenParameterDTO.class), false);
+                    konzernLieferantenParameterDTOList.add(konzernLieferantenParameterDTO);
+                });
+                sortedSupplierParameterList = konzernLieferantenParameterDTOList.stream().sorted(Comparator.comparing(KonzernLieferantenParameterDTO::getBezeichnung, String.CASE_INSENSITIVE_ORDER)).collect(Collectors.toList());
+            }
+            return sortedSupplierParameterList;
+        } catch (Exception e) {
+            LOGGER.error("method 'getSupplierParameter' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    /**
+     * Service to get dealer type to create master data.
+     *
+     * @param countryCode
+     * @return
+     */
+    @Transactional("dimsTransactionManger")
+    public List<ParameterHeaderDTO> getDealerType(Long countryCode) {
+        try {
+            List<ParameterHeaderDTO> parameterHeaderDTOList = new ArrayList<>();
+            List<ParameterHeaderDTO> sortedDealerTypeList = new ArrayList<>();
+            Optional<List<ParameterHeader>> parameter_headerList = parameterHeaderRepository.getDealerType(countryCode);
+            if (parameter_headerList.isPresent()) {
+                parameter_headerList.get().forEach(parameter_header -> {
+                    ParameterHeaderDTO parameterHeaderDTO = (ParameterHeaderDTO) SimpleConverter.convertEntityToModel(parameter_header, Map.of(ParameterHeader.class, ParameterHeaderDTO.class), false);
+                    parameterHeaderDTOList.add(parameterHeaderDTO);
+                });
+                sortedDealerTypeList = parameterHeaderDTOList.stream().sorted(Comparator.comparing(ParameterHeaderDTO::getPhName, String.CASE_INSENSITIVE_ORDER)).collect(Collectors.toList());
+            }
+            return sortedDealerTypeList;
+        } catch (Exception e) {
+            LOGGER.error("method 'getDealerType' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    /**
+     * Service to create master data.
+     *
+     * @param createDealerDTO
+     * @return
+     */
+
+    @Transactional("dimsTransactionManger")
+    public boolean createDealer(CreateDealerDTO createDealerDTO) {
+        boolean isDealerCreated = false;
+        try {
+            Optional<GSSNPool> gssnPool = gssnPoolRepository.findById(createDealerDTO.getDealerId());
+            if (gssnPool.isPresent()) {
+                DealerMaster dealerMaster = setDealerMasterData(createDealerDTO.getStockFrom(), createDealerDTO.getRimsActiveFrom(), gssnPool.get());
+                dealerMasterRepository.save(dealerMaster);
+
+                //save Dealer type and supplier type.
+                ParameterDealerAssignment parameterDealerAssignment = new ParameterDealerAssignment();
+                parameterDealerAssignment.setPdaGloc(createDealerDTO.getDealerId());
+                parameterDealerAssignment.setParameterHeader(parameterHeaderRepository.findById(createDealerDTO.getDealerTypeISN()).get());
+                parameterDealerAssignment.setKonzernLieferantenParameter(konzernLieferantenParameterRepository.findById(createDealerDTO.getSupplierParameterISN()).get());
+                parameterDealerAssignment.setPdaFlpIsn(1L);
+                parameterDealerAssignment.setPdaChangedAt(new Date(System.currentTimeMillis()));
+                //TODO: We have to set created by (add login user name)
+                parameterDealerAssignment.setPdaChangedBy("logbusall");
+                parameterDealerAssignmentRepository.save(parameterDealerAssignment);
+
+                //save calender related to data.
+                GlobaleOrte globalOrte = new GlobaleOrte();
+                globalOrte.setGort(createDealerDTO.getDealerId());
+                globalOrte.setName(gssnPool.get().getName());
+                globalOrte.setKal(createDealerDTO.getDealerCalenderNumber());
+                globaleOrteRepository.save(globalOrte);
+
+                //delete dealer from GSSN_POOL table.
+                gssnPoolRepository.delete(gssnPool.get());
+
+                isDealerCreated = true;
+            }
+            return isDealerCreated;
+        } catch (Exception e) {
+            LOGGER.error("method 'createDealer' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+
+    /**
+     * @param stockFrom
+     * @param rimsActiveFrom
+     * @param gssnPool
+     * @return
+     */
+    public DealerMaster setDealerMasterData(String stockFrom, String rimsActiveFrom, GSSNPool gssnPool) {
+        DealerMaster dealerMaster = new DealerMaster();
+        dealerMaster.setGort(gssnPool.getGort());
+        dealerMaster.setHbNR(gssnPool.getHbNR());
+        dealerMaster.setName(gssnPool.getName());
+        dealerMaster.setStrasse(gssnPool.getStrasse());
+        dealerMaster.setHausnumber(gssnPool.getHausnumber());
+        dealerMaster.setPlz(gssnPool.getPlz());
+        dealerMaster.setStadt(gssnPool.getStadt());
+        dealerMaster.setTelefon(gssnPool.getTelefon());
+        dealerMaster.setFax(gssnPool.getFax());
+        dealerMaster.setEmail(gssnPool.getEmail());
+        dealerMaster.setWeb(gssnPool.getWeb());
+        dealerMaster.setTyp(gssnPool.getTyp());
+        dealerMaster.setKzAktiv(gssnPool.getKzAktiv());
+        dealerMaster.setAedat(gssnPool.getAedat());
+        dealerMaster.setKzHb(gssnPool.getKzHb());
+        dealerMaster.setGpsXGssn(gssnPool.getGpsXGssn());
+        dealerMaster.setGpsYGssn(gssnPool.getGpsYGssn());
+        dealerMaster.setGpsXGeodec(gssnPool.getGpsXGeodec());
+        dealerMaster.setGpsYGeodec(gssnPool.getGpsYGeodec());
+        dealerMaster.setCompanyIdGssn(gssnPool.getCompanyIdGSSN());
+        dealerMaster.setZeitzone(gssnPool.getZeitzone());
+        dealerMaster.setKzBestandsImport(stockFrom);
+        dealerMaster.setCorsProcess("R");
+        if (stockFrom.equalsIgnoreCase("D")) {
+            dealerMaster.setDimsStatus(1L);
+        } else if (stockFrom.equalsIgnoreCase("S") || stockFrom.equalsIgnoreCase("C")) {
+            dealerMaster.setDimsStatus(0L);
+        }
+        dealerMaster.setDimsStatusAb(Date.valueOf(rimsActiveFrom));
+        return dealerMaster;
+    }
+
+    @Transactional("dimsTransactionManger")
+    public CreateNewDealerResultDTO createNewDealerGssn(CreateNewDealerDTO createNewDealerDTO) {
+        try {
+            CreateNewDealerResultDTO createNewDealerResultDTO = new CreateNewDealerResultDTO();
+            if (checkDealerExist(createNewDealerDTO.getDealerId())) {
+                createNewDealerResultDTO.setMessage("Dealer already exist");
+                createNewDealerResultDTO.setDealerCreated(false);
+            } else if (null != createNewDealerDTO.getMainDealer() && !checkDealerExist(createNewDealerDTO.getMainDealer())) {
+                createNewDealerResultDTO.setMessage("Main Dealer does not exist");
+                createNewDealerResultDTO.setDealerCreated(false);
+            } else {
+                GSSNPool gssnPool = new GSSNPool();
+                mapGssnPoolEntity(createNewDealerDTO, gssnPool);
+                gssnPoolRepository.save(gssnPool);
+                createNewDealerResultDTO.setMessage("New dealer created");
+                createNewDealerResultDTO.setDealerCreated(true);
+            }
+            return createNewDealerResultDTO;
+        } catch (Exception e) {
+            LOGGER.error("method 'createNewDealerGssn' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    @Transactional("dimsTransactionManger")
+    public CreateNewDealerResultDTO copyDealer(CopyDealerDTO copyDealerDTO) {
+        CreateNewDealerResultDTO createNewDealerResultDTO = new CreateNewDealerResultDTO();
+        try {
+            Optional<GSSNPool> gssnPool = gssnPoolRepository.findById(copyDealerDTO.getDealerId());
+            Optional<DealerMaster> dealerMasterData = dealerMasterRepository.findById(copyDealerDTO.getDefaultDealerId());
+            Optional<ParameterDealerAssignment> parameterDealerAssignment = parameterDealerAssignmentRepository.findById(copyDealerDTO.getDefaultDealerId());
+            Optional<GlobaleOrte> globaleOrte = globaleOrteRepository.findById(copyDealerDTO.getDefaultDealerId());
+            if (dealerMasterData.isPresent()) {
+                if (gssnPool.isPresent() && parameterDealerAssignment.isPresent() && globaleOrte.isPresent()) {
+                    DealerMaster dealerMaster = setDealerMasterData(dealerMasterData.get().getKzBestandsImport(), copyDealerDTO.getRimsActiveFrom(), gssnPool.get());
+                    dealerMasterRepository.save(dealerMaster);
+
+                    ParameterDealerAssignment paraDealerAssignment = new ParameterDealerAssignment();
+                    paraDealerAssignment.setPdaGloc(copyDealerDTO.getDealerId());
+                    paraDealerAssignment.setParameterHeader(parameterDealerAssignment.get().getParameterHeader());
+                    paraDealerAssignment.setKonzernLieferantenParameter(parameterDealerAssignment.get().getKonzernLieferantenParameter());
+                    paraDealerAssignment.setPdaFlpIsn(1L);
+                    paraDealerAssignment.setPdaChangedAt(new Date(System.currentTimeMillis()));
+                    //TODO: We have to set created by (add login user name)
+                    paraDealerAssignment.setPdaChangedBy("logbusall");
+                    parameterDealerAssignmentRepository.save(paraDealerAssignment);
+
+                    //save calender related to data.
+                    GlobaleOrte globOrte = new GlobaleOrte();
+                    globOrte.setGort(copyDealerDTO.getDealerId());
+                    globOrte.setName(gssnPool.get().getName());
+                    globOrte.setKal(globaleOrte.get().getKal());
+                    globaleOrteRepository.save(globOrte);
+
+                    //delete dealer from GSSN_POOL table.
+                    gssnPoolRepository.delete(gssnPool.get());
+                    createNewDealerResultDTO.setDealerCreated(true);
+                    createNewDealerResultDTO.setMessage("Dealer copied");
+                }
+            } else {
+                createNewDealerResultDTO.setDealerCreated(false);
+                createNewDealerResultDTO.setMessage("Default dealer does not exist");
+            }
+            return createNewDealerResultDTO;
+        } catch (Exception e) {
+            LOGGER.error("method 'copyDealer' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    @Transactional("dimsTransactionManger")
+    public boolean checkDealerExist(Long dealerId) {
+        boolean isDealerExist = false;
+        if (dealerMasterRepository.existsById(dealerId) || gssnPoolRepository.existsById(dealerId)) {
+            isDealerExist = true;
+        }
+        return isDealerExist;
+    }
+
+    public GSSNPool mapGssnPoolEntity(CreateNewDealerDTO createNewDealerDTO, GSSNPool gssnPool) {
+        gssnPool.setGort(createNewDealerDTO.getDealerId());
+        gssnPool.setName(createNewDealerDTO.getDealerName());
+        gssnPool.setHbNR(null != createNewDealerDTO.getMainDealer() ? createNewDealerDTO.getMainDealer() : null);
+        gssnPool.setStrasse(createNewDealerDTO.getStreet());
+        gssnPool.setPlz(createNewDealerDTO.getPostCode());
+        gssnPool.setStadt(createNewDealerDTO.getStadt());
+        gssnPool.setTelefon(createNewDealerDTO.getTelephone());
+        gssnPool.setFax(createNewDealerDTO.getFax());
+        gssnPool.setEmail(createNewDealerDTO.getEmail());
+        gssnPool.setTyp(createNewDealerDTO.getType());
+        return gssnPool;
+    }
+
+    @Transactional("dimsTransactionManger")
+    public List<DealerMasterSearchDTO> searchDealers(DealerMasterSearch dealerMasterSearchDTO) {
+
+        Long countryCode = dealerMasterSearchDTO.getCountryCode();
+        String dealerId = dealerMasterSearchDTO.getGort();
+        String name = dealerMasterSearchDTO.getName();
+        String city = dealerMasterSearchDTO.getStadt();
+        String postalCode = dealerMasterSearchDTO.getPlz();
+        String telephone = dealerMasterSearchDTO.getTelefon();
+        List<com.logfit.stox.models.DealerMasterSearchDTO> searchDealerResult = new ArrayList<>();
+
+        //update country code in app_properties_user table, without any condition on username, key and Application Id
+        if (countryCode != null) {
+            updateCountryCodeInAppPropertiesUserTable(countryCode);
+        }
+        List<DealerMaster> searchDealerListFromDealerMaster = dealerMasterRepository.searchDealersFromDealerMaster(countryCode, dealerId,
+                name, city, postalCode, telephone);
+
+        if (searchDealerListFromDealerMaster != null && !searchDealerListFromDealerMaster.isEmpty()) {
+            for (int i = 0; i < searchDealerListFromDealerMaster.size(); i++) {
+                searchDealerResult.add(mapSearchDealerMaster(searchDealerListFromDealerMaster.get(i)));
+            }
+        }
+        List<GSSNPool> searchDealerListFromGssnPool = gssnPoolRepository.searchDealersFromGssnPool(countryCode, dealerId,
+                name, city, postalCode, telephone);
+
+        if (searchDealerListFromGssnPool != null && !searchDealerListFromGssnPool.isEmpty()) {
+            for (int i = 0; i < searchDealerListFromGssnPool.size(); i++) {
+                searchDealerResult.add(mapSearchGssnPool(searchDealerListFromGssnPool.get(i)));
+            }
+        }
+        return searchDealerResult;
+    }
+
+    public com.logfit.stox.models.DealerMasterSearchDTO mapSearchDealerMaster(DealerMaster dmEntity) {
+        com.logfit.stox.models.DealerMasterSearchDTO searchDealersMapResult = (com.logfit.stox.models.DealerMasterSearchDTO) SimpleConverter.convertEntityToModel(dmEntity, Map.of(
+                DealerMaster.class, com.logfit.stox.models.DealerMasterSearchDTO.class), false);
+        return searchDealersMapResult;
+    }
+
+    public com.logfit.stox.models.DealerMasterSearchDTO mapSearchGssnPool(GSSNPool gpEntity) {
+        com.logfit.stox.models.DealerMasterSearchDTO searchDealersMapResult = (com.logfit.stox.models.DealerMasterSearchDTO) SimpleConverter.convertEntityToModel(gpEntity, Map.of(
+                GSSNPool.class, com.logfit.stox.models.DealerMasterSearchDTO.class), false);
+        return searchDealersMapResult;
+    }
+
+    public List<String> uploadDealer(UploadDealerMasterDataDTO uploadDealerMasterDataDTO) {
+        System.out.println("uploadDealerMasterDataDTO :: " + uploadDealerMasterDataDTO);
+        List<String> result = new ArrayList<String>();
+        List<UploadSheetOneData> uploadSheetOneDataList = uploadDealerMasterDataDTO.getUploadSheetOneDataList();
+        System.out.println("uploadSheetOneDataList :: " + uploadSheetOneDataList);
+        List<UploadSheetTwoData> uploadSheetTwoDataList = uploadDealerMasterDataDTO.getUploadSheetTwoDataList();
+        for (int i = 0; i < uploadSheetOneDataList.size(); i++) {
+            try {
+                Optional<GSSNPool> gssnPool = gssnPoolRepository.findById(uploadDealerMasterDataDTO.getUploadSheetOneDataList().get(i).getDealerId());
+                Optional<DealerMaster> dealerMasterData = dealerMasterRepository.findById(uploadDealerMasterDataDTO.getUploadSheetOneDataList().get(i).getDealerId());
+                System.out.println("dealerMasterData :: " + dealerMasterData);
+                System.out.println("gssnPool :: " + gssnPool);
+
+                if (dealerMasterData != null) {
+                    // saveSheetOneData(uploadSheetOneDataList.get(i), gssnPool.get(),dealerMasterData.get());
+                    result.add("Dealer Number has already been created");
+                    System.out.println("cursor is coming here");
+                } else {
+                    saveSheetOneData(uploadSheetOneDataList.get(i), gssnPool.get(), dealerMasterData.get());
+                    result.add("Dealer Number  created");
+                    System.out.println("cursor is coming here 2");
+                }
+                if (gssnPool.isPresent()) {
+                    saveSheetOneData(uploadSheetOneDataList.get(i), gssnPool.get(), dealerMasterData.get());
+                    //result.add("Dealer Number is not known");
+                } else {
+                    // saveSheetOneData(uploadSheetOneDataList.get(i), gssnPool.get(),dealerMasterData.get());
+                    result.add("Dealer Number is not known");
+                }
+
+            } catch (Exception e) {
+                LOGGER.error("method 'uploadDealer' is failed, message:{}", e.getMessage(), e);
+                throw new RuntimeException();
+            }
+         
+
+            for (int i = 0; i < uploadSheetTwoDataList.size(); i++) {
+
+                try {
+                    Optional<GSSNPool> gssnPool = gssnPoolRepository.findById(uploadDealerMasterDataDTO.getUploadSheetTwoDataList().get(i).getDealerId());
+                    Optional<DealerMaster> dealerMasterData = dealerMasterRepository.findById(uploadDealerMasterDataDTO.getUploadSheetTwoDataList().get(i).getDealerId());
+                    System.out.println("dealerMasterData :: " + dealerMasterData);
+                    System.out.println("gssnPool :: " + gssnPool);
+
+                    if (dealerMasterData != null) {
+                        // saveSheetOneData(uploadSheetOneDataList.get(i), gssnPool.get(),dealerMasterData.get());
+                        result.add("Dealer Number has already been created");
+                        System.out.println("cursor is coming here");
+                    } else {
+                        saveSheetTwoData(uploadSheetTwoDataList.get(i), gssnPool.get());
+                        result.add("Dealer Number  created");
+                        System.out.println("cursor is coming here 2");
+                    }
+                    if (gssnPool.isPresent()) {
+                        saveSheetTwoData(uploadSheetTwoDataList.get(i), gssnPool.get());
+                        //result.add("Dealer Number is not known");
+                    } else {
+                        // saveSheetOneData(uploadSheetOneDataList.get(i), gssnPool.get(),dealerMasterData.get());
+                        result.add("Dealer Number is not known");
+                    }
+
+                } catch (Exception e) {
+                    LOGGER.error("method 'uploadDealer' is failed, message:{}", e.getMessage(), e);
+                    throw new RuntimeException();
+                }
+            }
+            
+        }
+        return result;
+    }
+
+   public void saveSheetOneData(UploadSheetOneData uploadSheetOneData, GSSNPool gssnPool , DealerMaster dealerMasterData){
+
+       Optional<ParameterDealerAssignment> parameterDealerAssignment = parameterDealerAssignmentRepository.findById(uploadSheetOneData.getDealerId());
+
+       //save Dealer type Name in  PARAMETER_HEADER table
+       Long phIsnNumber = parameterDealerAssignment.get().getParameterHeader().getPhIsn();
+       Optional<ParameterHeader> ph = parameterHeaderRepository.findById(phIsnNumber);
+       ph.get().setPhName(uploadSheetOneData.getDealerTypeName());
+       parameterHeaderRepository.save(ph.get());
+
+       // save Supplier parameters in  KONZERN_LIEFERANTEN_PARAMETER table
+       Long  lifeIsnNumber = parameterDealerAssignment.get().getKonzernLieferantenParameter().getLifeIsn();
+       Optional<KonzernlLieferantenParameter> kl = konzernLieferantenParameterRepository.findById(lifeIsnNumber);
+       kl.get().setBezeichnung(uploadSheetOneData.getSupplierParameterName());
+       konzernLieferantenParameterRepository.save(kl.get());
+
+        //save calender related to data in globale_orte table
+        GlobaleOrte globalOrte = new GlobaleOrte();
+        globalOrte.setGort(uploadSheetOneData.getDealerId());
+        globalOrte.setKal(uploadSheetOneData.getDealerCalenderNumber());
+        globaleOrteRepository.save(globalOrte);
+
+        //save Stock form, DimsActive form and GSSN outlet codes in betriebsdaten_konzern(dealer Master) table
+       dealerMasterData.setCompanyIdGssn(uploadSheetOneData.getCompanyIdGssn());
+       dealerMasterData.setKzBestandsImport(uploadSheetOneData.getStockFrom());
+       dealerMasterData.setDimsStatusAb(uploadSheetOneData.getRimsActiveFrom()); // need to check
+       dealerMasterRepository.save(dealerMasterData);
+
+        //delete dealer from GSSN_POOL table.
+        gssnPoolRepository.delete(gssnPool);
+        System.out.println("cursor is coming here");
+    }
+    public void saveSheetTwoData(UploadSheetTwoData uploadSheetTwoData, GSSNPool gssnPool ) {
+        //save DealerId, Brand, Parts_Group, Customer_Number, Branch_Number, Supplier_Number
+        KundenNummern kundennummern = new KundenNummern();
+
+        kundennummern.setGort(uploadSheetTwoData.getDealerId());
+        kundennummern.setMarke(uploadSheetTwoData.getBrand());
+        kundennummern.setTeilegruppe(uploadSheetTwoData.getParts_group());
+        kundennummern.setKunden_nummer(uploadSheetTwoData.getCustomer_number());
+        kundennummern.setBranch_nummer(uploadSheetTwoData.getBranch_number());
+        kundennummern.setLieferanten_nummer_ruv(uploadSheetTwoData.getSupplier_number());
+        kundenNummernRepository.save(kundennummern);
+
+        //delete dealer from GSSN_POOL table.
+        gssnPoolRepository.delete(gssnPool);
+        System.out.println("cursor is coming here");
+    }
+
+
+    @Transactional("dimsTransactionManger")
+    public com.logfit.stox.models.AppPropertiesUser getCountryCodeFromUser(String userId) {
+        try {
+            AppPropertiesUser result = appPropertiesUserRepository.getCountryCodeFromUser(Constants.APU_PROPERTY_KEY, Constants.APU_APPLICATION_ID, userId);
+            if (result != null) {
+                return mapAppPropertiesUserData(result);
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            LOGGER.error("method 'getCountryCodeFromUser' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+
+    public com.logfit.stox.models.AppPropertiesUser mapAppPropertiesUserData(AppPropertiesUser appPropertiesUserEntity) {
+        com.logfit.stox.models.AppPropertiesUser appPropertiesUserMapResult = (com.logfit.stox.models.AppPropertiesUser) SimpleConverter.convertEntityToModel(appPropertiesUserEntity, Map.of(
+                AppPropertiesUser.class, com.logfit.stox.models.AppPropertiesUser.class), false);
+        return appPropertiesUserMapResult;
+    }
+
+    void updateCountryCodeInAppPropertiesUserTable(Long countryCode) {
+
+        Date currentDate = Date.valueOf(LocalDate.now());
+        AppPropertiesUser result = appPropertiesUserRepository.getCountryCodeFromUser(Constants.APU_PROPERTY_KEY, Constants.APU_APPLICATION_ID, Constants.APU_USER_NAME);
+        if (result != null) {
+            appPropertiesUserRepository.updateCountryForUserNameIdkey(countryCode.toString(), Constants.APU_PROPERTY_KEY, Constants.APU_APPLICATION_ID, Constants.APU_USER_NAME, currentDate);
+        } else {
+            AppPropertiesUser newData = new AppPropertiesUser();
+            newData.setApuUserName(Constants.APU_USER_NAME);
+            newData.setApuApplicationId(Constants.APU_APPLICATION_ID);
+            newData.setApuPropertyKey(Constants.APU_PROPERTY_KEY);
+            newData.setApuPropertyBlob((null));
+            newData.setApuPropertyText(countryCode.toString());
+            newData.setApuLastChange(currentDate);
+            newData.setApuChangeBy(Constants.APU_USER_NAME);
+            newData.setApuPropertyType("java.lang.String");
+            appPropertiesUserRepository.save(newData);
+        }
+    }
+
+}

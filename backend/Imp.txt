@@ -1,0 +1,663 @@
+import { Component, Inject, Injector, OnDestroy, OnInit } from '@angular/core';
+import { GridOptions, GridReadyEvent, RowClickedEvent } from 'ag-grid-community';
+import { DealerMasterDataTranslationKeys } from '../dealer-master-data.tx-config';
+import {
+  AbstractGrid,
+  ColDefList,
+  RowSelectionMode
+} from '@frontend/shared/ui-grid';
+import { Translation, AbstractConfigService, SpinnerService, DeviceTypeService, MessageType, Message } from '@frontend/shared/ui-base';
+import { ConfigService, MessageService, TranslationService } from '@frontend/logfit/stox/ui-core';
+import { ConnectedDealerList, DealerDetailsData, DealerMasterDataService, DealerMasterDataTableColumn, DealerMasterDataTableList, copyDealerDataResult } from '@frontend/logfit/stox/data-access/dealer-master-data';
+import { DealerMastrtDataFormIds } from '../dealer-master-data.form-ids';
+import { Subscription } from 'rxjs';
+import { CreateDealerComponent } from './dialog/create-dealer/create-dealer.component';
+import { MatDialog, MatDialogConfig, MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { CopyDealerComponent } from './dialog/copy-dealer/copy-dealer.component';
+import { CreateNewDealerComponent } from './dialog/create-new-dealer/create-new-dealer.component';
+import { Result, XlsTools} from '@frontend/shared/util-tools';
+import {  UploadData,  UploadDataErrorType, UploadDataResponse, uploadDealerDataResult } from 'libs/logfit/stox/data-access/dealer-master-data/src/lib/dealer-master-data.model';
+import { UploadDealerComponent } from './dialog/upload-dealer/upload-dealer.component';
+import { CountryDataList, dealerCalenderNoList, dealerTypeList, supplierParameterList } from '@frontend/logfit/stox/data-access/dealer-master-data';
+import { HttpErrorResponse } from '@angular/common/http';
+import * as XLSX from 'xlsx';
+
+
+@Component({
+  selector: 'frontend-dealer-master-data-tab',
+  templateUrl: './dealer-master-data-tab.component.html',
+  styleUrls: ['./dealer-master-data-tab.component.scss']
+})
+export class DealerMasterDataTabComponent extends AbstractGrid implements OnInit {
+
+ 
+
+  /** translation text */
+  public readonly tx = {
+    ...DealerMasterDataTranslationKeys.translationKeys.dealerMasterData
+  };
+
+  /** Forms Id */
+  public formIds = DealerMastrtDataFormIds.formIds;
+    /** Forms Id */
+    // public formIds = DealerMastrtDataFormIds.formIds.dealerMasterData;
+
+  /** table data */
+  public rowData: DealerMasterDataTableList = [];
+
+/** All errors of the file are logging in here */
+public errorLog: string[] = [];
+
+/** If the file has no errors, all parsed data are in here to upload them */
+private dataToUpload: Array<UploadData> = [];
+ /** country list */
+ public countryList: CountryDataList = [];
+
+ /** Calender No list */
+ public dealerCalenderNoList: dealerCalenderNoList = [];
+
+ /** Supplier Parameter List */
+ public supplierParameterList : supplierParameterList = [];
+
+ /**dealer type List */
+ public dealerTypeList : dealerTypeList = [];
+ 
+
+  public dealerData: DealerDetailsData = {
+    dealerMasterData: {
+      gort: 0,
+      name: '',
+      strasse: '',
+      hausnumber: 0,
+      plz: '',
+      stadt: '',
+      telefon: '',
+      fax: '',
+      email: '',
+      web: '',
+      hbNR: 0,
+      dimsStatus: 0,
+      stoxAktiv: 0,
+      typ: '',
+      kzAktiv: 0,
+      dms: '',
+      dmsVersion: '',
+      haendlerGruppe: '',
+      aedat: '',
+    },
+    connectedDealerMasterDataList: [],
+    existInGssn: false,
+    existInDealer: false
+  }
+
+  public dealerId!:string;
+
+  public copyDealerFlag = false;
+  public createDealerFlag = false;
+
+  public clickEventsubscriptionTab!: Subscription;
+  public dialogData: any;
+  dealerMasterData: any;
+ 
+ 
+
+  constructor(private config: ConfigService,
+    //@Inject(MAT_DIALOG_DATA) public dialogData: any,
+    private messageService: MessageService,
+    private translationService: TranslationService,
+    private spinnerService: SpinnerService,
+    protected override injector: Injector,
+    private deviceTypeService: DeviceTypeService,
+    private dealerMasterDataService: DealerMasterDataService,
+    public dialog: MatDialog,
+    private matDialog: MatDialog
+  ) {
+    super(injector, deviceTypeService);
+    this.dealerMasterDataService.getLoadDataEvent
+      .subscribe(() => {
+        this.getData();
+      });
+  }
+
+
+  public override ngOnInit(): void {
+    super.ngOnInit();
+    this.copyDealerFlag = false;
+    this.createDealerFlag = false;
+    this.createForm();
+    this.initializeGrid();
+  }
+
+  public onFileSelection(event: Event): void {
+    const target: DataTransfer = <DataTransfer>(<unknown>event.target);
+    if (target.files.length !== 1) throw new Error('Multiple files not supported');
+    const  reader:FileReader = new FileReader();
+    reader.onload = (e: any) => {
+      const bstr: string = e.target.result;
+      const wb: XLSX.WorkBook = XLSX.read(bstr, { type: 'binary' });
+       let errorData1 : any[] = [];
+       let errorData2 : any[] = [];
+      for (let index: any = 0; index < wb.SheetNames.length; index++) {
+         const wsname: string = wb.SheetNames[index];
+         const ws: XLSX.WorkSheet = wb.Sheets[wsname];
+         /* save data */
+       const data = <any>(XLSX.utils.sheet_to_json(ws, { header: 1 }));
+       this.processFile(data, index );
+       if(index === 0){
+         errorData1 = this.errorLog;
+        }else{
+         errorData2 = this.errorLog;
+        }   
+      }
+        this.errorLog = [...errorData1, ...errorData2];
+        this.processExcelFile();
+    };
+     reader.readAsBinaryString(target.files[0]);
+  }
+
+  private processExcelFile(): void {
+    this.spinnerService.showSpinner();
+    
+    // if (data !== null) {
+        // this.processFile(data, index );
+       // console.log('data',data);
+        if (this.errorLog.length === 0) {
+
+          // if(data !== null){
+          const message: Message = new Message(this.tx.uploadData.msgSuccessfulUpload, MessageType.Info,);
+          this.messageService.showInfoMessage(message);
+          this.spinnerService.hideSpinner();
+          // }
+        }else {
+             //this.messageService.showErrorMessage(this.tx.uploadData.msgServerError).then();
+             this.openErrorLogDialog();
+             this.spinnerService.hideSpinner();
+      };
+    // }
+    //  else {
+    //   this.spinnerService.hideSpinner();
+    //  //this.messageService.showErrorMessage(this.tx.uploadData.messageFalseFormat).then();
+    // }
+  }
+
+  private processFile(data: Array<Array<unknown>>, sheetNo: number): void {
+   
+    this.dataToUpload = [];
+    this.errorLog = [];
+    let rowNumber = 1;
+  
+    let sheetNumber = sheetNo + 1;
+    let dealer: number = 0;
+    let stockImport: string= '';
+    let dimsActive: Date = new Date();
+    let branchNumber: number = 0;
+    let customerNumber: number = 0;
+    let supplierNumber: number = 0;
+
+    for (let index = 0; index < data.length; index++) {
+      if(data[index].length > 0){
+      const dataRow = data[index];
+      if(sheetNumber === 1){
+       dealer = this.checkAndSetDealerNumber(dataRow[0], rowNumber, sheetNumber);
+       stockImport = this.checkAndSetStockImport (dataRow[5], rowNumber, sheetNumber);
+       dimsActive = this.checkAndSetDimsActive(dataRow[6], rowNumber,sheetNumber);
+      }else {
+       dealer = this.checkAndSetDealerNumber(dataRow[0], rowNumber, sheetNumber);
+       customerNumber = this.checkAndSetCustomerNumber(dataRow[3], rowNumber, sheetNumber);
+       branchNumber = this.checkAndSetBranchNumber(dataRow[4], rowNumber, sheetNumber);
+       supplierNumber = this.checkAndSetSupplierNumber(dataRow[5], rowNumber, sheetNumber);
+      }
+      
+      if (this.errorLog.length === 0) {
+      const uploadData: UploadData = {
+      dealer: dealer,
+      stockImport:stockImport,
+      dimsActive:dimsActive,
+      branchNumber:branchNumber,
+      supplierNumber:supplierNumber,
+      customerNumber:customerNumber,
+      rowNumber: rowNumber,
+      sheetNumber: sheetNumber
+      };
+   
+       this.dataToUpload.push(uploadData);
+      }
+      rowNumber++;
+    }
+  }
+  }
+
+   /**
+   * Checks and sets the dealer number
+   * @param dealerFromFile dealer number from file
+   * @param rowNumber row number
+   * @param sheetNumber sheet number
+   * @returns new dealer number
+   */
+    private checkAndSetDealerNumber(dealerFromFile: unknown, rowNumber: number, sheetNumber: number) {
+      let dealer = 999999999;
+   
+      if (typeof dealerFromFile === 'number') {
+        if (dealerFromFile < 999999999) {
+          dealer = dealerFromFile;
+        } else if (dealerFromFile > 999999999) {
+         this.errorLog.push(this.translationService.translate(this.tx.uploadData.dealerNumber,{rowNo: rowNumber, sheetNumber}));
+        }
+      } else if (dealerFromFile) {
+        this.errorLog.push(this.translationService.translate(this.tx.uploadData.dealerNumber, {rowNo: rowNumber, sheetNumber}));
+      }
+      else {
+        this.errorLog.push(this.translationService.translate(this.tx.uploadData.dealerNumber, {rowNo: rowNumber, sheetNumber}));
+      }
+
+      return dealer;
+    }
+
+      /**
+       * Checks and sets the stockImport
+       * @param stockImportFromFile stockImport from file
+       * @param rowNumber row number
+       * @returns new stockImport
+       */
+          private checkAndSetStockImport(stockImportFromFile: unknown, rowNumber: number, sheetNumber: number ): string {
+            let stockImport = 'D';
+           
+             if (typeof stockImportFromFile === 'string') {
+             
+              if (stockImportFromFile === 'D'  || stockImportFromFile === 's' || stockImportFromFile === 'C'){
+                stockImport = stockImportFromFile;
+               
+              } else{
+                this.errorLog.push(this.translationService.translate(this.tx.uploadData.StockImportIndicatorInvalid, {rowNo: rowNumber, sheetNumber}));
+              }
+
+            }else {
+
+              this.errorLog.push(this.translationService.translate(this.tx.uploadData.StockImportIndicatorInvalid, {rowNo: rowNumber, sheetNumber}));
+             }
+            return stockImport;
+          }
+
+
+     /**
+       * Checks and sets the DimsActive
+       * @param DimsActiveFromFile DimsActive from file
+       * @param rowNumber row number
+       * @returns new DimsActive
+       */
+        private checkAndSetDimsActive(DimsActiveFromFile: unknown, rowNumber: number, sheetNumber: number): Date {
+          let DimsActive = new Date();
+          if (typeof DimsActiveFromFile === 'number') {
+            
+              DimsActive = new Date(-2209075200000 + (DimsActiveFromFile - (DimsActiveFromFile < 61 ? 0 : 1)) * 86400000);
+
+            } else if (DimsActiveFromFile) {
+              this.errorLog.push(this.translationService.translate(this.tx.uploadData.DimsActivefrom, {rowNo: rowNumber, sheetNumber}));
+            } else {
+            this.errorLog.push(this.translationService.translate(this.tx.uploadData.DimsActivefrom, {rowNo: rowNumber, sheetNumber}));
+          }
+          return DimsActive;
+      }
+      /**
+   * Checks and sets the customer number
+   * @param customerFromFile dealer number from file
+   * @param rowNumber row number
+   * @returns new customer number
+   */
+       private checkAndSetCustomerNumber(customerFromFile: unknown, rowNumber: number, sheetNumber: number): number {
+        let customer = 999999;
+        if (typeof customerFromFile === 'number') {
+          if (customerFromFile < 999999) {
+            customer = customerFromFile;
+          } else if (customerFromFile > 999999) {
+            this.errorLog.push(this.translationService.translate(this.tx.uploadData.customerNumber, {rowNo: rowNumber, sheetNumber}));
+          }
+        } else if (customerFromFile) {
+          this.errorLog.push(this.translationService.translate(this.tx.uploadData.customerNumber, {rowNo: rowNumber, sheetNumber}));
+        }
+        else {
+          this.errorLog.push(this.translationService.translate(this.tx.uploadData.customerNumber, {rowNo: rowNumber, sheetNumber}));
+        }
+        return customer;
+      }
+
+       /**
+   * Checks and sets the branch number
+   * @param branchFromFile dealer number from file
+   * @param rowNumber row number
+   * @returns new branch number
+   */
+        private checkAndSetBranchNumber(branchFromFile: unknown, rowNumber: number, sheetNumber: number): number {
+          let branch = 99;
+          if (typeof branchFromFile === 'number') {
+            if (branchFromFile < 99) {
+              branch = branchFromFile;
+            } else if (branchFromFile > 99) {
+              this.errorLog.push(this.translationService.translate(this.tx.uploadData.branchNumber, {rowNo: rowNumber, sheetNumber}));
+            }
+          } else if (branchFromFile) {
+            this.errorLog.push(this.translationService.translate(this.tx.uploadData.branchNumber, {rowNo: rowNumber, sheetNumber}));
+          }
+          else {
+            this.errorLog.push(this.translationService.translate(this.tx.uploadData.branchNumber, {rowNo: rowNumber, sheetNumber}));
+          }
+          return branch;
+        }
+
+   /**
+   * Checks and sets the supplier number
+   * @param supplierFromFile dealer number from file
+   * @param rowNumber row number
+   * @returns new supplier number
+   */
+        private checkAndSetSupplierNumber(supplierFromFile: unknown, rowNumber: number, sheetNumber: number): number {
+          let supplier = 999999;
+          if (typeof supplierFromFile === 'number') {
+            if (supplierFromFile < 999999) {
+              supplier = supplierFromFile;
+            } else if (supplierFromFile > 999999) {
+              this.errorLog.push(this.translationService.translate(this.tx.uploadData.supplierNumber, {rowNo: rowNumber,sheetNumber}));
+            }
+          } else if (supplierFromFile) {
+            this.errorLog.push(this.translationService.translate(this.tx.uploadData.supplierNumber, {rowNo: rowNumber, sheetNumber}));
+          }
+          else {
+            this.errorLog.push(this.translationService.translate(this.tx.uploadData.supplierNumber, {rowNo: rowNumber, sheetNumber}));
+          }
+          return supplier;
+        }
+
+      /**
+   * Opens up the dealer selection dialog
+   */
+  private openErrorLogDialog(): void {
+    const dialogConfig = new MatDialogConfig();
+    dialogConfig.disableClose = true;
+    dialogConfig.id = 'modal-upload-dealer-error-results';
+    dialogConfig.data = {title: this.tx.uploadData.errorLogDialogTitle, title1:this.tx.uploadData.error1,logMessages: this.errorLog};
+    this.matDialog.open(UploadDealerComponent, dialogConfig);
+  }
+
+  public getData() {
+    this.onResetColumnConfig();
+    this.copyDealerFlag = false;
+    this.createDealerFlag = false;
+    this.dealerMasterDataService.dealerDataDetails.subscribe(data =>
+      this.dealerData = data);
+    this.dealerMasterDataService.dealerIdDetails.subscribe(data => this.dealerId = data);
+    this.updateRowData();
+  }
+
+  /** Method to create a form */
+  public createForm(): void {
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.name).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.streetHouseNo).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.dealerType).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.dealerGroup).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.postalCode).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.city).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.mainDealer).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.telephone).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.fax).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.active).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.email).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.web).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.dms).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.dmsVersion).setValidators([]);
+    this.addEmptyControl(this.formIds.dealerMasterData.dealerMasterDataFields.lastUpdatedOn).setValidators([]);
+    this.defaultFormGroup.disable();
+  }
+
+  public copyDealer(): void {
+    const copyDealerDialog = this.dialog.open(CopyDealerComponent,{
+      data:{
+        data:this.dealerData
+      }
+    });
+    copyDealerDialog.afterClosed().subscribe(result => {
+      if(result) {
+        if(result.isOk()) {
+          const copyDealerResult: copyDealerDataResult = result.getValue();
+          if(copyDealerResult.dealerCreated) {
+            this.copyDealerFlag = false;
+            this.createDealerFlag = false;
+          }
+        }
+      }
+    });
+  }
+
+  public createDealer(): void {
+    const createDealerDialog = this.dialog.open(CreateDealerComponent, {
+      data:{
+        data: this.dealerData
+      }
+    });
+    createDealerDialog.afterClosed().subscribe(result => {
+      if(result) {
+        if(result.isOk()) {
+          this.copyDealerFlag = false;
+          this.createDealerFlag = false;
+        }
+      }
+    });
+  }
+
+  public uploadData(): void {
+
+  }
+
+  public uploadDealer(): void {
+      this.dialog.open(UploadDealerComponent, {
+        data:{
+        data: this.dealerData
+        }
+      });
+    }
+
+  public updateRowData(): void {
+    if (!this.dealerData.existInDealer && !this.dealerData.existInGssn) {
+      this.copyDealerFlag = false;
+      this.createDealerFlag = false;
+      this.createNewDealerInfoPopup();
+    } else if (!this.dealerData.existInDealer && this.dealerData.existInGssn) {
+      this.copyDealerFlag = true;
+      this.createDealerFlag = true;
+      this.setDealerRowData();
+    } else if(this.dealerData.existInDealer && !this.dealerData.existInGssn) {
+      this.copyDealerFlag = false;
+      this.createDealerFlag = false;
+      this.setDealerRowData();
+    }
+  }
+
+  public createNewDealerInfoPopup(): void {
+    this.messageService.showContinueCancelMessage(
+      { message: this.tx.messages.needToCreateNewDealer, type: MessageType.Info }).then((value) =>
+        {
+          if ((value.yes === true))
+          {
+            this.openCreateNewDealerDialoge();
+          }
+    });
+  }
+
+  public openCreateNewDealerDialoge(): void {
+    this.dialog.open(CreateNewDealerComponent, {
+      data:{
+        data: this.dealerId
+      }
+    });
+  }
+
+  public setDealerRowData(): void {
+    this.spinnerService.showSpinner();
+    const dealerType = this.getDealerTypeName(this.dealerData.dealerMasterData.typ);
+    const mainDealer = !this.dealerData.dealerMasterData.hbNR ? true : false;
+    const active = this.dealerData.dealerMasterData.kzAktiv === 1 ? true : false;
+    const oldData = this.dealerData.connectedDealerMasterDataList;
+    const newRowData: ConnectedDealerList = [];
+    if(oldData){
+      oldData.forEach(data =>{
+        if(data.hbNR === null){
+          data.connectedDealer = 'J';
+        } else{
+          data.connectedDealer = 'N'
+        }
+        newRowData.push(data);
+      })
+    }
+    this.rowData = this.dealerData.connectedDealerMasterDataList;
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.name, this.dealerData.dealerMasterData.name);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.streetHouseNo, this.dealerData.dealerMasterData.strasse);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.dealerType, dealerType);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.dealerGroup, this.dealerData.dealerMasterData.haendlerGruppe);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.postalCode, this.dealerData.dealerMasterData.plz);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.city, this.dealerData.dealerMasterData.stadt);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.mainDealer, mainDealer);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.telephone, this.dealerData.dealerMasterData.telefon);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.fax, this.dealerData.dealerMasterData.fax);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.active, active);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.email, this.dealerData.dealerMasterData.email);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.web, this.dealerData.dealerMasterData.web);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.dms, this.dealerData.dealerMasterData.dms);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.dmsVersion, this.dealerData.dealerMasterData.dmsVersion);
+    this.setControlValue(this.formIds.dealerMasterData.dealerMasterDataFields.lastUpdatedOn, this.dealerData.dealerMasterData.aedat);
+    this.spinnerService.hideSpinner();
+  }
+
+  public getDealerTypeName(type: string): any {
+    switch (type) {
+      case 'NDL': return this.getTranslationService().translate(this.tx.dealerType['NDL']);
+        break;
+      case 'VP': return this.getTranslationService().translate(this.tx.dealerType['VP']);
+        break;
+      case 'SMART': return this.getTranslationService().translate(this.tx.dealerType['SMART']);
+        break;
+      case 'WHS': return this.getTranslationService().translate(this.tx.dealerType['WHS']);
+        break;
+      case 'WHSN': return this.getTranslationService().translate(this.tx.dealerType['WHSN']);
+        break;
+      case 'WHSX': return this.getTranslationService().translate(this.tx.dealerType['WHSX']);
+        break;
+      case 'SPEC': return this.getTranslationService().translate(this.tx.dealerType['SPEC']);
+        break;
+      case 'CWH': return this.getTranslationService().translate(this.tx.dealerType['CWH']);
+        break;
+      case 'OTHER': return this.getTranslationService().translate(this.tx.dealerType['OTHER']);
+        break;
+    }
+  }
+
+  /**
+   * Returns the grid options and also the default column config that is used for all columns as a default
+   * @returns grid options
+   */
+  protected override initializeGridOptions(): GridOptions {
+    const colDefs = this.createColumnsDefinitions();
+    const gridOptions = super.initializeGridOptions(colDefs);
+    gridOptions.rowSelection = RowSelectionMode.Single;
+    return gridOptions;
+  }
+
+  public override onGridReady(event: GridReadyEvent): void {
+    super.onGridReady(event);
+    this.autoSizeAllColumns();
+  }
+
+  /**
+   * Creates the columns definitions for the grid.
+   * @returns column definitions
+   */
+  private createColumnsDefinitions(): ColDefList {
+    const colDefDealer = this.createTextColumn(DealerMasterDataTableColumn.Dealer, this.tx.dealerMasterDataTableHeader.dealer, '', true);
+    colDefDealer.cellClass = 'grid-right-aligned-cell';
+    const colDefName = this.createTextColumn(DealerMasterDataTableColumn.Name, this.tx.dealerMasterDataTableHeader.name, '', true);
+    const colDefCity = this.createTextColumn(DealerMasterDataTableColumn.City, this.tx.dealerMasterDataTableHeader.city, '', true);
+    const colDefMainDealer = this.createTextColumn(DealerMasterDataTableColumn.MainDealer, this.tx.dealerMasterDataTableHeader.maindealer, '', true);
+    colDefMainDealer.cellClass = 'grid-center-aligned-cell';
+    const colDefDMS = this.createTextColumn(DealerMasterDataTableColumn.DMS, this.tx.dealerMasterDataTableHeader.dms, '', true);
+    colDefDMS.cellClass = 'grid-center-aligned-cell';
+    const colDefDMSVersion = this.createTextColumn(DealerMasterDataTableColumn.DMSVersion, this.tx.dealerMasterDataTableHeader.dmsversion, '', true);
+    colDefDMSVersion.cellClass = 'grid-center-aligned-cell';
+    const colDefs = [
+      colDefDealer,
+      colDefName,
+      colDefCity,
+      colDefMainDealer,
+      colDefDMS,
+      colDefDMSVersion
+    ];
+
+    colDefs.forEach((colDef) => {
+      colDef.enableRowGroup = false;
+    });
+    return colDefs;
+  }
+
+  public onRowClicked(event: RowClickedEvent): void {
+    const data = this.getSelectedFilteredRows();
+    this.dealerMasterDataService.changesSelectedDealerData(data);
+    this.dealerMasterDataService.sendRowData();
+  }
+
+  /**
+* Returns the injected translation service
+* @returns translation service
+*/
+  protected getTranslationService(): Translation {
+    return this.translationService;
+  }
+
+  /**
+* Returns the injected config service
+* @returns config service
+*/
+  protected getConfigService(): AbstractConfigService {
+    return this.config;
+  }
+
+  // public uploadDealerData(){
+  //   const dateData: Moment = this.getControlValue(this.formIds.copyDealerFormFields.inRIMSActivefrom, this.copyFormGroup);
+  //   const data = this.getISODate(dateData.toDate());
+  //   const dealerCode = this.getControlValue(this.formIds.copyDealerFormFields.defaultDealer, this.copyFormGroup);
+  //   const countryCode = String(this.dialogData.data.dealerMasterData.gort).slice(0, 3);
+  //   const data1: number = DealerNumberTools.convertToGlobalDealerNumber(+countryCode, +dealerCode);
+  //   const dataToCopyDealer : copyDealerData = {
+  //     dealerId: this.dialogData.data.dealerMasterData.gort,
+  //     rimsActiveFrom: data,
+  //     defaultDealerId:data1,
+  //   }
+  //   this.sendDataToUploadDealer(dataToCopyDealer).then();
+  // }
+public async sendDataToUploadDealer(data: UploadData): Promise<void>{
+    this.spinnerService.showSpinner();
+    console.log("upload data ");
+    const result: Result<uploadDealerDataResult, HttpErrorResponse> = await this.dealerMasterDataService.uploadDealer(data);
+    if (result.isOk()) {
+      const uploadDealerResult: uploadDealerDataResult = result.getValue();
+      console.log("uploadDealerResult.dealerUploaded ==>"+uploadDealerResult.dealerUploaded);
+      if(uploadDealerResult.dealerUploaded) {
+        this.messageService.showInfoMessage(this.tx.messages.dealerCopied);
+      } else {
+        if(uploadDealerResult.message === "Default dealer does not exist") {
+          this.messageService.showInfoMessage("this.tx.messages.dealer has been created ");
+        }
+      }
+    } else {
+      await this.messageService.showErrorMessage(result.getError().message);
+    }
+    this.spinnerService.hideSpinner();
+  }
+}
+
+ parameterDealerAssignment.setPdaGloc(uploadDealerMasterDataDTO.getDealerId());
+        ParameterHeader ph = new ParameterHeader();
+        ph.setPhIsn(51000000001661L);
+        ph.setPhName(uploadDealerMasterDataDTO.getDealerTypeName());
+        parameterDealerAssignment.setParameterHeader(ph);
+
+        KonzernlLieferantenParameter kl = new KonzernlLieferantenParameter();
+        kl.setLifeIsn(51000000002886L);
+        kl.setBezeichnung(uploadDealerMasterDataDTO.getSupplierParameterName());
+        parameterDealerAssignment.setKonzernLieferantenParameter(kl);

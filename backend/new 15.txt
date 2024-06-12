@@ -1,0 +1,40 @@
+{
+"uploadSheetOneDataList":
+ [
+  {
+    "dealerId": "539000010",
+    "dealerCalenderNumber": "7",
+    "supplierParameterName": "C_NDL_261____",
+    "companyIdGssn": "GC0035049",
+    "dealerTypeName": "C_NDL_261____",
+    "rimsActiveFrom": "2022-12-29",
+    "stockFrom": "K"
+  },
+  {
+     "dealerId": "539000010",
+     "dealerCalenderNumber": "7",
+     "supplierParameterName": "C_NDL_261____",
+     "companyIdGssn": "GC0035049",
+     "dealerTypeName": "C_NDL_261____",
+     "rimsActiveFrom": "2022-12-29",
+     "stockFrom": "K"
+   }
+ ],
+"uploadSheetTwoDataList":
+[
+   {
+    "brand": "210",
+    "parts_group": "0",
+    "customer_number": "518600",
+    "branch_number": "0",
+    "supplier_number": "518600"
+    },
+    {
+    "brand": "210",
+    "parts_group": "0",
+    "customer_number": "518600",
+    "branch_number": "0",
+    "supplier_number": "518600"
+    }
+]
+}
