@@ -1,0 +1,46 @@
+$ git status
+On branch feature/STOX/OrderOverview/LOGBUS-28574
+All conflicts fixed but you are still merging.
+
+$ git merge --abort
+
+$ git status
+On branch feature/STOX/OrderOverview/LOGBUS-28574
+nothing to commit, working tree clean
+
+$ git checkout develop
+Switched to branch 'develop'
+Your branch is behind 'origin/develop' by 47 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+
+$ git pull
+
+$ git status
+On branch develop
+Your branch is up to date with 'origin/develop'.
+
+nothing to commit, working tree clean
+
+$ git branch -D feature/STOX/OrderOverview/LOGBUS-28574
+Deleted branch feature/STOX/OrderOverview/LOGBUS-28574 (was 69dda63be).
+
+$ git status
+On branch develop
+Your branch is up to date with 'origin/develop'.
+
+nothing to commit, working tree clean
+
+$ git fetch
+
+$ git checkout feature/STOX/OrderOverview/LOGBUS-28574
+Switched to a new branch 'feature/STOX/OrderOverview/LOGBUS-28574'
+branch 'feature/STOX/OrderOverview/LOGBUS-28574' set up to track 'origin/feature/STOX/OrderOverview/LOGBUS-28574'.
+
+$ git status
+On branch feature/STOX/OrderOverview/LOGBUS-28574
+Your branch is up to date with 'origin/feature/STOX/OrderOverview/LOGBUS-28574'.
+
+nothing to commit, working tree clean
+
+$ git pull
+Already up to date.

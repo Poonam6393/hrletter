@@ -1,0 +1,133 @@
+====================FRONT END SETUP START=====================
+
+1.Install angular 
+    // HU Nucleus
+    npm config set https-proxy="http://he202194.emea2.cds.t-internal.com:3128" 
+	npm install -g @angular/cli@13.3.9
+	npm install -g nx
+	
+2.set env variables in PATH
+
+C:\Users\A200139472\AppData\Roaming\npm
+C:\Users\A200139472\AppData\Roaming\npm\node_modules\@angular\cli\bin	
+
+Notes : change specific path as per local system
+
+
+3.update npmrc file (C:\Users\A200139472\.npmrc)
+1. Check the npmrc file
+
+2. Open the git bash as admin and run below steps one by one:    
+	echo "registry=https://xentry-tools.daimler.com/nexus/repository/npm-group/" >> ~/.npmrc    
+	echo "always-auth=true" >> ~/.npmrc    
+	echo "_auth=$(echo -n 'PID7105:PFcuNxEkNktvk2NJY2gR' | openssl base64)" >> ~/.npmrc    
+	echo "noproxy[]=xentry-tools.daimler.com" >> ~/.npmrc    
+3. Just open the command prompt as admin then do cd and go to your code repo as till /frontend   (C:\Users\A200139472\Work\logbus_git\dcm\frontend)
+folder and copy that path on command prompt and then just do npm ci   
+4. once npm ci done just run below command     
+ng serve logfit-stox 
+
+use url
+http://localhost:4436/
+
+====================FRONT END SETUP END=====================
+
+====================BACK END SETUP START=====================
+
+1. Need to install Intellij.
+
+2. Set env variable in PATH. (like .. apache maven 3.3.3)
+
+3. Need to copy setting.xml in .m2 folder
+
+4. Set Maven home path and user setting file
+
+5.  Add the liabraries:- 
+    File--Proect structuere --libraries--java--add ojdbc jar.
+
+6.  Set Java path.
+    File--Project structure --Set SDK need to select jdk version 
+
+7. Then clean the project by clicking on maven 
+
+8. And then install in maven.
+
+
+====================BACK END SETUP END ==================================
+
+===================LOG-Fit branching START ===============================
+
+
+1. create JIRA (example - LOGBUS-26368) - Programming type.
+2. create us story branch (feature/LOGBUS-26368)
+3. make code changes for userstory locally ,test them
+4. create pull request using Bitbucket.
+5. select at least one member for code review
+6. merge request completed.
+7. wait for code build if there are any errors ,put fix
+6. Update Jira ticket(close) with the changes and files changed list in the comment  
+
+===================LOG-Fit branching END===============================
+
+
+=====================Cypress Test setup START ===================================
+1.Install angular 
+    // HU Nucleus
+    npm config set https-proxy="http://he202194.emea2.cds.t-internal.com:3128" 
+	npm install -g @angular/cli@13.3.9
+	npm install -g nx
+	
+2.set env variables in PATH for nodejs - 
+
+
+C:\Users\A200139472\AppData\Roaming\npm
+C:\Users\A200139472\AppData\Roaming\npm\node_modules\@angular\cli\bin	
+
+Notes : change specific path as per local system
+
+
+3.update npmrc file (C:\Users\A200139472\.npmrc)
+1. Check the npmrc file
+
+2. Open the git bash as admin and run below steps one by one:    
+	echo "registry=https://xentry-tools.daimler.com/nexus/repository/npm-group/" >> ~/.npmrc    
+	echo "always-auth=true" >> ~/.npmrc    
+	echo "_auth=$(echo -n 'PID7105:PFcuNxEkNktvk2NJY2gR' | openssl base64)" >> ~/.npmrc    
+	echo "noproxy[]=xentry-tools.daimler.com" >> ~/.npmrc    
+
+
+create folder - for cypress automation
+C:\Users\A200139472\cypress_automation
+
+CMD promt as admin run following command
+1) cd C:\Users\A200139472\cypress_automation
+2) npm init
+3) add package name when prompted
+eg:( add author name also)
+package name: (cypressautomation) logbus_cars
+version: (1.0.0)
+description: this is for logbus_cars project automation
+entry point: (index.js)
+test command:
+git repository:
+keywords:
+author: shubham patil(your user name)
+license: (ISC)
+
+4) type yes when prompted
+5) type dir for directory space
+6) run command npm install cypress --save-dev
+after installation completed
+7)open your cypressAutomation folder in VS code
+8) open new terminal
+9) run command 'npx cypress open'(if timeout issue comes try again for success)
+10) cypress will get open
+
+
+
+
+
+=====================Cypress Test setup End ===================================
+
+
+

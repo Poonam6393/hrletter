@@ -1,0 +1,56 @@
+
+preRequisites - Need JetBrains IntelliJ IDEA Ultimate license
+
+1) Clone the project  
+	git clone https://seu16.gdc-leinf01.t-systems.com/bitbucket/scm/cl/dcm.git  -- you will be on develop branch
+
+2) Optional : switch to your working branch
+	git checkout branchName
+
+3) check java version and maven version install in system ..( Java Version will be 11)
+		 -if maven not install
+		 a) Download maven from the link --- https://maven.apache.org/download.cgi
+		 b) After maven download add maven folder in c/
+		 
+4) go to the command prompt open backend folder and run command --  mvn clean install -DskipTests
+
+5) go to the backend folder delete logfit.iml file and .idea folder if present
+
+6) go to frontend folder delete frontend.iml file and delet .idea folder if present
+
+7) import project in intellij
+	a) For frontend ... file-> New-> Project from existing sources -> (your frontend folder from clone folder)
+	b) for Backend ... file-> New-> Project from existing sources -> (your Backend folder from clone folder) -> select Maven -> do next next
+
+8) to install frontend: 
+	a) apply the patch for package.json file only (git --> patch --> apply patch --> select patch --> ok --> only select package.json -> ok ) patch Name : fix_build_issues.patch
+	b) go to ....\dcm\frontend folder -> delete package-lock.json file
+	c) do npm install( while doing npm install  
+		1. do npm cache clean --force
+		2. npm cache verify
+		3. npm install)
+
+9) to run UAM locally we need postgressql 13
+    a) download postgresql 13 --https://sbp.enterprisedb.com/getfile.jsp?fileid=1258333
+	b) run the exe file .. add password as postgres, just exclude stackbuild
+	c) open pgAdmin create a database and user for UAM and add port as 5438
+	d) to create DB : right click on database-> create Db-> in general tab, name database as a 'uam' --> save and close
+	e) to create User -> Right click on Login/Group Role->create Login/Group Role ->  Add uam as a name in general tab -> in definition tab, add password as a 'uam' -> 
+		in Privileges tab, enable can login, superuser, create roles, create databases and Inherit rights from the parent roles options --> save and close
+	
+10) to start backend: 
+    ( preRequisites: connect to admin lan and start putty)
+	a) go to .idea folder of repository copy run configuation and add those in backend folder -> .idea
+	b) to download the dependency of maven just click on maven at right side of intelliJ and click on refresh and then on download -> dpwnload sources
+	c) go to the edit configuation of stox and remove npm 'Start Stox' from the configuation (select npm start stox option and click on '-' sign)
+	d) ..\dcm\backend\.idea\runConfigurations --> STOX.xml  --> change order ,it should be UAM then GUARD and then STOX
+	d) run the STOX... form edit configuration ..
+	
+11) to start fronend 
+   do npm run start-stox	or ng serve logfit-stox
+   
+12) Username- pdiwate
+	Password- start
+   
+   
+ 

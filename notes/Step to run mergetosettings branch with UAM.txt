@@ -1,0 +1,34 @@
+1) Clone the project -- https://seu16.gdc-leinf01.t-systems.com/bitbucket/scm/cl/dcm.git  then switch to mergesettingstodev branch
+2) check java version and maven version install in system ..( Java Version will be 11)
+		 -if maven not install
+		 a) Download maven from the link --- https://maven.apache.org/download.cgi
+		 b) After maven download add maven folder in c/
+		 
+3) go to the command prompt open backend folder and run command --  mvn clean install -DskipTests
+4) go to the backend folder delete logfit.iml file and .idea folder if present
+5) go to frontend folder delete frontend.iml file and delet .idea folder if present
+6) import project in intellij
+	a) For frontend ... file-> New-> Project from existing sources -> (your frontend folder from clone folder)
+	b) for Backend ... file-> New-> Project from existing sources -> (your frontend folder from clone folder) -> select Maven -> do next next
+
+7) to install frontend: 
+	a) apply the patch for package.json file only
+	b) delete package.json file
+	c) do npm install( while doing npm install  1. do npm cache clean --fore
+												2. connect to gpc daimler)
+ 8) to run UAM locally we need postgressql 13
+    a) download postgresql 13 --https://sbp.enterprisedb.com/getfile.jsp?fileid=1258333
+	b) run the exe file .. add password as postgres, just exclude stackbuild
+	c) open pgAdmin create a database and user for UAM and add port as 5438
+	d) to create DB : right click on database-> create Db-> uam
+	e) to create User -> click on Login/Group Role-> uam
+	
+8) to start backend: 
+    ( preRequisites: connect to admin lan and start putty)
+	a) go to .idea folder of repository copy run configuation and add those in backend folder -> .idea
+	b) to download the dependency of maven just click on maven at right side of intelliJ and click on refresh and then on download
+	c) go to the edit configuation of stox and remove frontend from the configuation
+	d) run the STOX... form edit configuration .. once it run .. again start GUARD application,as it will fail for first time 
+	
+9) to start fronend 
+   do npm install start-stox	

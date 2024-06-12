@@ -1,0 +1,17 @@
+  
+--------------------------------------- Activate IntelliJ license Steps-------------------------------------
+
+1) download IntelliJ --> https://www.jetbrains.com/idea/download/download-thanks.html?platform=windows --> run exe file --> select "add folder as a project","add bin folder to path" and .java checkbox 
+	-> select jetBrains -> install intelliJ --> 
+
+2) https://account.jetbrains.com/licenses --> add email id and Forgot password --> you will get link through email to reset password 
+
+3) Using new password login into account -> https://account.jetbrains.com/licenses
+
+4) Download activation code for offline usage
+
+5) extract all
+
+6) open below file in notepad --> for 2018.2 or later (e.g : OI7C01KKT3 - shital.mahimkar@t-systems.com - for 2018.2 or later) --> copy that code 
+
+7) open intelliJ -> select activate radio button --> paste copies code --> ok 

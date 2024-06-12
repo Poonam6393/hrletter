@@ -1,0 +1,49 @@
+
+
+===============================Localizaton steps===============================
+
+Step 1. C:\Users\A200073486\STOX new 2\dcm\frontend\libs\logfit\stox\ui-core\src\lib\i18n\translation-data-server\data\settings-tab.tx.ts
+
+add the code in German language and English language in respective tabs name in settings-tab.tx.ts files
+
+Example:- 
+-----------In German Language-----------
+purchaseAndSalesSettingsPanel: {
+
+ buttons:{
+   	saveBtn:'Speichern',
+   	reloadBtn: 'Verwerfen'
+        }
+}
+
+---------In English Language-----------
+purchaseAndSalesSettingsPanel: {
+ buttons:{
+         saveBtn:'Save',
+         reloadBtn: 'Discard'
+         }
+}
+
+Step 2. C:\Users\A200073486\STOX new 2\dcm\frontend\libs\logfit\stox\features\settings-tab\src\lib\settings-tab.tx-config.ts
+
+add keys to the settings-tab.tx-config.ts files
+
+Example:-
+purchaseAndSalesSettingsPanel: {
+buttons:{
+        saveBtn:'',
+        reloadBtn: ''
+        }
+}
+
+
+Step 3. C:\Users\A200073486\STOX new 2\dcm\frontend\libs\logfit\stox\features\settings-tab\src\lib\purchase-and-sales-settings\purchase-and-sales-settings.component.html
+
+read that buttons in respective html files.
+
+Example:- 
+For Reload button
+{{tx.purchaseAndSalesSettingsPanel.buttons.reloadBtn | i18n}}
+
+For Save Button
+{{tx.purchaseAndSalesSettingsPanel.buttons.saveBtn | i18n}}
