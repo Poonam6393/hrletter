@@ -1,0 +1,11 @@
+
+how to set null value :==>
+
+const sellDataArray1: SellData = {
+    dealerNumber: dealerNumber ,
+    partnerNumber: partnerNumber ? partnerNumber: null,
+    orderIdFrom: orderIdFrom ? orderIdFrom: null,
+    orderIdTo: orderIdTo ? orderIdTo: null,
+    partNumber: partNumber? partNumber: null,
+    orderHint:orderHint? orderHint: null,
+  };

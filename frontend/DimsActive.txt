@@ -1,0 +1,54 @@
+  /**
+   * Checks and sets the DimsActive 
+   * @param DimsActiveFromFile DimsActive from file
+   * @param rowNumber row number
+   * @returns new DimsActive
+   */
+    private checkAndSetDimsActive(DimsActiveFromFile: unknown, rowNumber: number): Date {
+      let DimsActive = new Date();
+      if (typeof DimsActiveFromFile === 'number') {
+        //if (DimsActiveFromFile = 'dd-mm-yyyy') {
+          DimsActive = new Date(-2209075200000 + (DimsActiveFromFile - (DimsActiveFromFile < 61 ? 0 : 1)) * 86400000);
+          
+        } else if (DimsActiveFromFile) {
+          this.errorLog.push(this.translationService.translate(this.tx.uploadData.DimsActivefrom, {rowNo: rowNumber}));
+        } else {
+        this.errorLog.push(this.translationService.translate(this.tx.uploadData.DimsActivefrom, {rowNo: rowNumber}));
+      } 
+      return DimsActive;
+  }
+  
+  
+  
+  
+   
+
+     /**
+   * Checks and sets the stockImport
+   * @param stockImportFromFile stockImport from file
+   * @param rowNumber row number
+   * @returns new stockImport
+   */
+      private checkAndSetStockImport(stockImportFromFile: unknown, rowNumber: number ): string {
+        let stockImport = 'D';
+        console.log("xyz", stockImportFromFile);
+         if (typeof stockImportFromFile === 'string') {
+          console.log('ABC', stockImportFromFile);
+          if (stockImportFromFile === 'D'  || stockImportFromFile === 's' || stockImportFromFile === 'C'){
+            stockImport = stockImportFromFile;
+            console.log('DEF', stockImportFromFile);
+          } else{
+            this.errorLog.push(this.translationService.translate(this.tx.uploadData.StockImportIndicatorInvalid, {rowNo: rowNumber}));
+          }
+        
+        }else {
+         
+          this.errorLog.push(this.translationService.translate(this.tx.uploadData.StockImportIndicatorInvalid, {rowNo: rowNumber}));
+         } 
+        return stockImport;
+      }
+	  
+	  
+	  
+	  
+	  dimsActive:Date

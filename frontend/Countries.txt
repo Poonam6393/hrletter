@@ -1,0 +1,253 @@
+-----> package com.logfit.stox.entities; <-----
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
+/**
+ * The type Countries.
+ */
+@Entity
+@Table(name = "COUNTRIES")
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+public class Countries {
+
+    /**
+     * country Code Gssn.
+     */
+    @Id
+    @Column(name = "CNT_COUNTRY_CODE_GSSN", nullable = false)
+    private Long countryCodeGssn;
+
+
+    /**
+     * name.
+     */
+    @Column(name = "CNT_NAME", nullable = false)
+    private String name;
+
+}
+
+-----> package com.logfit.stox.models; <--------
+
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+/**
+ * The type Countries.
+ */
+@Data
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+public class Countries {
+
+    /**
+     * countryCodeGssn.
+     */
+    private Long countryCodeGssn;
+
+    /**
+     * name.
+     */
+    private String name;
+
+}
+
+-----> package com.logfit.stox.repositories; <------
+
+import com.logfit.stox.entities.Countries;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+/**
+ * The interface Countries repository.
+ */
+@Repository
+public interface CountriesRepository extends JpaRepository<Countries, Long> {
+}
+
+------> package com.logfit.stox.services; <-------
+
+import com.logfit.stox.entities.AppResources;
+import com.logfit.stox.entities.Countries;
+import com.logfit.stox.repositories.AppResourcesRepository;
+import com.logfit.stox.repositories.CountriesRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * The type Countries service.
+ */
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class CountriesService {
+
+    /**
+     * Countries Repository.
+     */
+    @Autowired
+    private CountriesRepository countriesRepository;
+
+   
+    /**
+     * Gets all countries.
+     *
+     * @return the all countries
+     */
+    @Transactional
+    public List<Countries> getAllCountries() {
+        try {
+            LOGGER.info("method 'getAllCountries' is started");
+            return countriesRepository.findAll();
+        } catch (Exception e) {
+            LOGGER.error("method 'getAllCountries' is failed, message:{}", e.getMessage(), e);
+            throw new RuntimeException();
+        }
+    }
+	
+----> package com.logfit.stox.resources; <------
+
+import com.logfit.stox.models.AppResources;
+import com.logfit.stox.services.CountriesService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * The type Countries.
+ */
+@RestController
+@Slf4j
+@RequiredArgsConstructor
+public class Countries {
+
+    /**
+     * countries Service.
+     */
+    @Autowired
+    private final CountriesService countriesService;
+
+
+    /**
+     * Gets all countries.
+     *
+     * @param parIncludeRequests the par include requests
+     * @return the all countries
+     */
+    @GetMapping(path = "/all-country", produces = "application/json")
+    public ResponseEntity<Object> getAllCountries(@RequestParam(value = "includeRequests", required = false,
+            defaultValue = "false") final Boolean parIncludeRequests) {
+        try {
+            List<com.logfit.stox.entities.Countries> countries = countriesService.getAllCountries();
+            if (null != countries) {
+                return ResponseEntity.ok(countries);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (final Exception parE) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+----> Unit Testing <-------
+package com.logfit.stox.resources;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.logfit.stox.services.CountriesService;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.skyscreamer.jsonassert.JSONAssert;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+
+import java.util.ArrayList;
+import java.util.List;
+
+
+import static org.mockito.BDDMockito.given;
+
+@WebMvcTest(value = Countries.class)
+@ExtendWith(SpringExtension.class)
+@Slf4j
+public class CountriesTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private CountriesService countriesService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private List<com.logfit.stox.entities.Countries> countriesList;
+
+
+    private final static List<com.logfit.stox.entities.Countries> COUNTRIES = createCountries();
+
+    private static List<com.logfit.stox.entities.Countries> createCountries() {
+        final List<com.logfit.stox.entities.Countries> countries = new ArrayList<>();
+        countries.add(new com.logfit.stox.entities.Countries(300L, "Singapore 1"));
+        countries.add(new com.logfit.stox.entities.Countries(301L, "Taiwan 2"));
+        countries.add(new com.logfit.stox.entities.Countries(302L, "Japan 3"));
+        return countries;
+    }
+
+    @Test
+    void getAllCountriesTest() throws Exception {
+        List<com.logfit.stox.entities.Countries> countriesList = new ArrayList<>();
+        countriesList.add(new com.logfit.stox.entities.Countries(300L, "Singapore 1"));
+        countriesList.add(new com.logfit.stox.entities.Countries(301L, "Taiwan 2"));
+        countriesList.add(new com.logfit.stox.entities.Countries(302L, "Japan 3"));
+        given(countriesService.getAllCountries()).willReturn(countriesList);
+
+        RequestBuilder requestBuilder = MockMvcRequestBuilders.get("/all-country").
+                accept(MediaType.APPLICATION_JSON);
+        MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+        String responseAsString = result.getResponse().getContentAsString();
+        JSONAssert.assertEquals(objectMapper.writeValueAsString(COUNTRIES), responseAsString, false);
+    }
+}
+
+
+
